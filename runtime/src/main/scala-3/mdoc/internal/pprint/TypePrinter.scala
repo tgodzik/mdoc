@@ -15,10 +15,9 @@ object TPrint {
 object TypePrinter{
 
   def typeString[T](using ctx: Quotes, tpe: Type[T]): Expr[TPrint[T]] = {
-    import ctx.reflect._
+    import quotes.reflect._
+    val valueType = Type.showShort[T]
 
-    val typePrinter = new SourceTypePrinter(SyntaxHighlight.plain)
-    
-    '{  new TPrint[T]{ def render: String = ${ Expr(typePrinter.showType(TypeTree.of(using tpe).tpe)) } }  }
+    '{  new TPrint[T]{ def render: String = ${ Expr(valueType) } }  }
   }
 }
