@@ -99,7 +99,8 @@ object MdocPlugin extends AutoPlugin {
         if (mdocAutoDependency.value) {
           val suffix = if (isJS) "-js" else ""
           List(
-            "org.scalameta" % s"mdoc${suffix}_${compatibleScalaVersion.value}" % BuildInfo.version
+            ("org.scalameta" % s"mdoc${suffix}_${compatibleScalaVersion.value}" % BuildInfo.version)
+              .exclude("org.scalameta", s"mdoc${suffix}_${scalaVersion.value}")
           )
         } else {
           List()
