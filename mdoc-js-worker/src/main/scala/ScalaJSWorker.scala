@@ -18,6 +18,8 @@ import org.scalajs.logging.Logger
 import org.scalajs.logging.Level
 import org.scalajs.linker.standard.MemIRFileImpl
 import org.scalajs.linker.interface.Semantics
+import scala.collection.JavaConverters._
+import com.armanbilge.sjsimportmap.ImportMappedIRFile
 
 class ScalaJSWorker(
     config: ScalajsConfig,
@@ -45,6 +47,12 @@ class ScalaJSWorker(
     StandardImpl.clearableLinker(cfg)
   }
 
+  lazy val esModuleRemapFunction: String => String =
+    config.importMap.asScala.toSeq.foldLeft((in: String) => in) { case (fct, (s1, s2)) =>
+      val fct2: (String => String) = (in => in.replace(s1, s2))
+      (in => fct(fct2(in)))
+    }
+
   var cachedFiles = Seq.empty[org.scalajs.linker.interface.IRFile]
 
   val cache = StandardImpl.irFileCache().newCache
@@ -64,10 +72,18 @@ class ScalaJSWorker(
     val mem = MemOutputDirectory()
     val report = Await.result(
       linker.link(
-        cachedFiles.toSeq ++
-          in.toSeq.collect { case IFile(o) =>
-            o
-          },
+        (
+          cachedFiles.toSeq ++
+            in.toSeq
+              .collect { case IFile(o) =>
+                o
+              }
+        ).map { ir =>
+          if (config.importMap.isEmpty)
+            ir
+          else
+            ImportMappedIRFile.fromIRFile(ir)(esModuleRemapFunction)
+        },
         Seq.empty,
         mem,
         logger

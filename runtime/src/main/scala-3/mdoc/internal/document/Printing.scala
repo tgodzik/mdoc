@@ -11,10 +11,13 @@ object Printing {
   }
 
   inline def printOneLine[T](value: T, out: StringBuilder, width: Int) = {
-    out.append(nullableToString(value).replace("\n", ""))
+    out.append(nullableToString(value).replace("\n", "").replaceAll("\\s+", " "))
   }
 
-  inline private def nullableToString[T](value: T) = {
-    if (value != null) value.toString else "null"
+  private def nullableToString[T](value: T): String = {
+    value match
+      case arr: Array[_] => arr.map(nullableToString).mkString("Array(", ", ", ")")
+      case null => "null"
+      case _ => value.toString()
   }
 }

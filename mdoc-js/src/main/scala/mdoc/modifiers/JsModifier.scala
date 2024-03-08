@@ -24,6 +24,9 @@ import scala.concurrent.Future
 import java.nio.file.Paths
 import mdoc.js.interfaces._
 import java.util.ServiceLoader
+import mdoc.js.interfaces.ModuleType.CommonJSModule
+import mdoc.js.interfaces.ModuleType.ESModule
+import mdoc.js.interfaces.ModuleType.NoModule
 
 class JsModifier extends mdoc.PreModifier {
   override val name = "js"
@@ -70,7 +73,10 @@ class JsModifier extends mdoc.PreModifier {
       .withModuleKind(config.moduleKind)
       .withSourceMap(false)
       .withBatchMode(config.batchMode)
-      .withClosureCompiler(config.fullOpt)
+      .withClosureCompiler(
+        config.fullOpt && config.moduleKind != ModuleType.ESModule
+      ) // Closure compiler doesn't work with ESModules
+      .withImportMap(config.importMap.asJava)
   }
 
   override def onLoad(ctx: OnLoadContext): Unit = {
@@ -173,15 +179,30 @@ class JsModifier extends mdoc.PreModifier {
           val outjsfile = resolveOutputJsFile(inputFile)
           outjsfile.write(new String(content))
           val outmdoc = outjsfile.resolveSibling(_ => "mdoc.js")
-          outmdoc.write(Resources.readPath("/mdoc.js"))
+          val selectMocTemplate = config.moduleKind match {
+            case CommonJSModule => "/mdoc_nomodule.js"
+            case ESModule => "/mdoc_esmodule.js"
+            case NoModule => "/mdoc_nomodule.js"
+          }
+          outmdoc.write(Resources.readPath(selectMocTemplate))
           val relfile = outjsfile.toRelativeLinkFrom(ctx.outputFile, config.relativeLinkPrefix)
           val relmdoc = outmdoc.toRelativeLinkFrom(ctx.outputFile, config.relativeLinkPrefix)
-          new CodeBuilder()
-            .println(config.htmlHeader)
-            .lines(config.libraryScripts(outjsfile, ctx))
-            .println(s"""<script type="text/javascript" src="$relfile" defer></script>""")
-            .println(s"""<script type="text/javascript" src="$relmdoc" defer></script>""")
-            .toString
+          config.moduleKind match {
+            case NoModule | CommonJSModule =>
+              new CodeBuilder()
+                .println(config.htmlHeader)
+                .lines(config.libraryScripts(outjsfile, ctx))
+                .println(s"""<script type="text/javascript" src="$relfile" defer></script>""")
+                .println(s"""<script type="text/javascript" src="$relmdoc" defer></script>""")
+                .toString
+            case ESModule =>
+              new CodeBuilder()
+                .println(config.htmlHeader)
+                .lines(config.libraryScripts(outjsfile, ctx))
+                .println(s"""<script type="module" src="$relfile"></script>""")
+                .println(s"""<script type="module" src="$relmdoc"></script>""")
+                .toString
+          }
       }
     }
   }
@@ -199,15 +220,15 @@ class JsModifier extends mdoc.PreModifier {
   }
 
   override def process(ctx: PreModifierContext): String = {
-    JsMods.parse(ctx.infoInput, ctx.reporter) match {
-      case Some(mods) =>
-        process(ctx, mods)
-      case None =>
+    JsMods.parse(ctx.fences, ctx.infoInput, ctx.reporter) match {
+      case AllMods(Some(jsmods), remaining) =>
+        process(ctx, jsmods, remaining)
+      case AllMods(None, _) =>
         ""
     }
   }
 
-  def process(ctx: PreModifierContext, mods: JsMods): String = {
+  def process(ctx: PreModifierContext, mods: JsMods, remainingMods: Array[String]): String = {
     val separator = "\n---\n"
     val text = ctx.originalCode.text
     val separatorIndex = text.indexOf(separator)
@@ -250,10 +271,23 @@ class JsModifier extends mdoc.PreModifier {
           .toString
       }
 
+    val outModule = ctx.outputFile.toRelative(ctx.outDirectory)
+
     runs += code
     new CodeBuilder()
-      .printlnIf(!mods.isInvisible, s"```scala\n${input.text}\n```")
-      .printlnIf(mods.isEntrypoint, s"""<div id="$htmlId" data-mdoc-js>$body</div>""")
+      .printIf(!mods.isInvisible, s"```scala")
+      .printIf(!remainingMods.isEmpty && !mods.isInvisible, remainingMods.mkString(" ", " ", ""))
+      .printIf(remainingMods.isEmpty && !mods.isInvisible, s"\n")
+      .printIf(!mods.isInvisible, s"${input.text}\n```")
+      .printIf(!mods.isInvisible, s"\n")
+      .printlnIf(
+        mods.isEntrypoint && !config.isEsModule,
+        s"""<div id="$htmlId" data-mdoc-js>$body</div>"""
+      )
+      .printlnIf(
+        mods.isEntrypoint && config.isEsModule,
+        s"""<div id="$htmlId" data-mdoc-js data-mdoc-module-name="./$outModule.js" >$body</div>"""
+      )
       .toString
   }
 }

@@ -6,15 +6,19 @@ import tests.markdown.StringSyntax._
 import tests.markdown.BaseMarkdownSuite
 import tests.js.JsTests.suffix
 import tests.markdown.Compat
+import scala.meta.io.AbsolutePath
+import java.nio.file.Paths
 
 class JsSuite extends BaseMarkdownSuite {
   // NOTE(olafur) Optimization. Cache settings to reuse the Scala.js compiler instance.
   // By default, we create new modifiers for each unit test, which is usually fast.
-  override lazy val baseSettings: Settings = super.baseSettings.copy(
-    site = super.baseSettings.site ++ Map(
-      "js-opt" -> "fast"
+  override def baseSettings(resourcePropertyFileName: String): Settings = super
+    .baseSettings()
+    .copy(
+      site = super.baseSettings().site ++ Map(
+        "js-opt" -> "fast"
+      )
     )
-  )
 
   check(
     "basic",
@@ -28,6 +32,77 @@ class JsSuite extends BaseMarkdownSuite {
        |```
        |<div id="mdoc-html-run0" data-mdoc-js></div>
        |<script type="text/javascript" src="basic.md.js" defer></script>
+       |<script type="text/javascript" src="mdoc.js" defer></script>
+    """.stripMargin
+  )
+
+  check(
+    "basic_es",
+    """
+      |```scala mdoc:js
+      |println("hello world!")
+      |```
+      |""".stripMargin,
+    """|```scala
+       |println("hello world!")
+       |```
+       |<div id="mdoc-html-run0" data-mdoc-js data-mdoc-module-name="./basic_es.md.js" ></div>
+       |<script type="module" src="basic_es.md.js"></script>
+       |<script type="module" src="mdoc.js"></script>
+    """.stripMargin,
+    settings = {
+      baseSettings().copy(
+        site = baseSettings().site.updated("js-module-kind", "ESModule")
+      )
+    }
+  )
+
+  checkCompiles(
+    "es_remap_settings",
+    """
+      |```scala mdoc:js:shared
+      |
+      |import scala.scalajs.js
+      |import scala.scalajs.js.annotation.JSImport
+      |
+      |@js.native
+      |@JSImport("@stdlib/blas/base", JSImport.Namespace)
+      |object blas extends BlasArrayOps
+      |
+      |@js.native
+      |trait BlasArrayOps extends js.Object{}
+      |```
+      |
+      |```scala mdoc:js
+      |println(blas)
+      |```
+      |""".stripMargin,
+    settings = {
+      baseSettings().copy(
+        site = baseSettings().site.updated("js-module-kind", "ESModule"),
+        importMapPath = Some(
+          AbsolutePath(
+            Paths
+              .get(this.getClass.getClassLoader.getResource("importmap.json").toURI())
+              .toAbsolutePath()
+          )
+        )
+      )
+    }
+  )
+
+  check(
+    "extra_fences",
+    """
+      |```scala mdoc:js sc:nocompile
+      |println("hello world!")
+      |```
+      |""".stripMargin,
+    """|```scala sc:nocompile
+       |println("hello world!")
+       |```
+       |<div id="mdoc-html-run0" data-mdoc-js></div>
+       |<script type="text/javascript" src="extra_fences.md.js" defer></script>
        |<script type="text/javascript" src="mdoc.js" defer></script>
     """.stripMargin
   )
@@ -287,10 +362,10 @@ class JsSuite extends BaseMarkdownSuite {
        |                                  ^
     """.stripMargin,
     settings = {
-      val noScalajsDom = Classpath(baseSettings.site("js-classpath")).entries
+      val noScalajsDom = Classpath(baseSettings().site("js-classpath")).entries
         .filterNot(_.toNIO.getFileName.toString.contains("scalajs-dom"))
-      baseSettings.copy(
-        site = baseSettings.site.updated("js-classpath", Classpath(noScalajsDom).syntax)
+      baseSettings().copy(
+        site = baseSettings().site.updated("js-classpath", Classpath(noScalajsDom).syntax)
       )
     },
     compat = Map(
@@ -340,8 +415,8 @@ class JsSuite extends BaseMarkdownSuite {
         createTempFile("mdoc-library.js"),
         createTempFile("mdoc-library.js.map")
       )
-      baseSettings.copy(
-        site = baseSettings.site
+      baseSettings().copy(
+        site = baseSettings().site
           .updated("js-module-kind", "CommonJSModule")
           .updated("js-libraries", Classpath(libraries).syntax)
       )
@@ -364,8 +439,8 @@ class JsSuite extends BaseMarkdownSuite {
         |<script type="text/javascript" src="mdoc.js" defer></script>
         |""".stripMargin,
     settings = {
-      baseSettings.copy(
-        site = baseSettings.site.updated("js-html-header", unpkgReact)
+      baseSettings().copy(
+        site = baseSettings().site.updated("js-html-header", unpkgReact)
       )
     }
   )

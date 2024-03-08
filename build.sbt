@@ -1,8 +1,8 @@
 import scala.collection.mutable
 
-def scala212 = "2.12.18"
-def scala213 = "2.13.12"
-def scala3 = "3.3.1"
+def scala212 = "2.12.19"
+def scala213 = "2.13.14"
+def scala3 = "3.3.3"
 def scala2Versions = List(scala212, scala213)
 def allScalaVersions = scala2Versions :+ scala3
 
@@ -13,6 +13,11 @@ def isScala2(v: Option[(Long, Long)]): Boolean = v.exists(_._1 == 2)
 def isScala212(v: Option[(Long, Long)]): Boolean = v.exists(_._1 == 2) && v.exists(_._2 == 12)
 def isScala213(v: Option[(Long, Long)]): Boolean = v.exists(_._1 == 2) && v.exists(_._2 == 13)
 def isScala3(v: Option[(Long, Long)]): Boolean = v.exists(_._1 == 3)
+
+def jsoniter = List(
+  "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core" % "2.13.5.2",
+  "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.13.5.2"
+)
 
 val isScala212 = Def.setting {
   VersionNumber(scalaVersion.value).matchesSemVer(SemanticSelector("2.12.x"))
@@ -114,14 +119,21 @@ lazy val sharedJavaSettings = List(
 )
 
 val V = new {
-  val scalameta = "4.9.1"
-  val munit = "1.0.0-M11"
+  val scalameta = "4.9.9"
+
+  val munit = "1.0.1"
+
   val coursier = "1.0.19"
-  val scalacheck = "1.17.0"
-  val pprint = "0.8.1"
-  val fansi = "0.4.0"
-  val fs2 = "3.9.4"
-  val metaconfig = "0.12.0"
+
+  val scalacheck = "1.18.0"
+
+  val pprint = "0.9.0"
+
+  val fansi = "0.5.0"
+
+  val fs2 = "3.10.2"
+
+  val metaconfig = "0.13.0"
 }
 
 lazy val interfaces = project
@@ -187,7 +199,7 @@ lazy val cli = project
       "io.get-coursier" % "interface" % V.coursier,
       "com.vladsch.flexmark" % "flexmark-all" % "0.64.8",
       "com.lihaoyi" %% "pprint" % V.pprint,
-      "com.geirsson" %% "metaconfig-typesafe-config" % V.metaconfig
+      "org.scalameta" %% "metaconfig-typesafe-config" % V.metaconfig
     ),
     libraryDependencies ++= crossSetting(
       scalaVersion.value,
@@ -233,14 +245,15 @@ lazy val mdoc = project
           .excludeAll(excludePprint)
       )
     ),
+    libraryDependencies ++= jsoniter,
     libraryDependencies ++= List(
       "com.googlecode.java-diff-utils" % "diffutils" % "1.3.0",
       "io.methvin" % "directory-watcher" % "0.18.0",
       // live reload
       "io.undertow" % "undertow-core" % "2.2.24.Final",
-      "org.jboss.xnio" % "xnio-nio" % "3.8.10.Final",
-      "org.slf4j" % "slf4j-api" % "2.0.11",
-      "com.geirsson" %% "metaconfig-typesafe-config" % V.metaconfig,
+      "org.jboss.xnio" % "xnio-nio" % "3.8.16.Final",
+      "org.slf4j" % "slf4j-api" % "2.0.16",
+      "org.scalameta" %% "metaconfig-typesafe-config" % V.metaconfig,
       "com.lihaoyi" %% "fansi" % V.fansi,
       "com.lihaoyi" %% "pprint" % V.pprint
     )
@@ -296,6 +309,34 @@ val jsdocs = project
     webpackBundlingMode := BundlingMode.LibraryOnly()
   )
   .enablePlugins(ScalaJSPlugin, ScalaJSBundlerPlugin)
+
+val jswebsitedocs = project
+  .in(file("tests/websiteJs"))
+  .settings(
+    sharedSettings,
+    publish / skip := true,
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+    },
+    libraryDependencies ++= List(
+      "org.scala-js" %%% "scalajs-dom" % scalajsDom
+    )
+  )
+  .enablePlugins(ScalaJSPlugin)
+
+val jswebsitedocs = project
+  .in(file("tests/websiteJs"))
+  .settings(
+    sharedSettings,
+    publish / skip := true,
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+    },
+    libraryDependencies ++= List(
+      "org.scala-js" %%% "scalajs-dom" % scalajsDom
+    )
+  )
+  .enablePlugins(ScalaJSPlugin)
 
 lazy val worksheets = project
   .in(file("tests/worksheets"))
@@ -425,7 +466,10 @@ lazy val jsWorker =
     .settings(
       sharedSettings,
       moduleName := "mdoc-js-worker",
-      libraryDependencies += ("org.scala-js" %% "scalajs-linker" % scalaJSVersion % Provided) cross CrossVersion.for3Use2_13
+      libraryDependencies ++= Seq(
+        "org.scala-js" %% "scalajs-linker" % scalaJSVersion % Provided cross CrossVersion.for3Use2_13,
+        "com.armanbilge" %% "scalajs-importmap" % "0.1.1" cross CrossVersion.for3Use2_13
+      )
     )
 
 lazy val js = project
@@ -434,6 +478,7 @@ lazy val js = project
   .settings(
     sharedSettings,
     moduleName := "mdoc-js",
+    libraryDependencies ++= jsoniter,
     Compile / unmanagedSourceDirectories ++= multiScalaDirectories("js").value
   )
   .dependsOn(mdoc)
@@ -456,8 +501,7 @@ lazy val docs = project
     watchSources += (ThisBuild / baseDirectory).value / "docs",
     Global / cancelable := true,
     MdocPlugin.autoImport.mdoc := (Compile / run).evaluated,
-    mdocJS := Some(jsdocs),
-    mdocJSLibraries := (jsdocs / Compile / fullOptJS / webpack).value,
+    mdocJS := Some(jswebsitedocs),
     MdocPlugin.mdocJSWorkerClasspath := {
       val _ = (jsWorker / Compile / compile).value
 
