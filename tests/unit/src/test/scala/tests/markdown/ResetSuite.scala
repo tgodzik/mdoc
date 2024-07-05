@@ -95,4 +95,37 @@ class ResetSuite extends BaseMarkdownSuite {
     """.stripMargin
   )
 
+  check(
+    "main".tag(OnlyScala3),
+    """
+      |```scala mdoc:reset-package
+      |@main def hello = ???
+      |```
+      |
+      |```scala mdoc:reset-package
+      |@main def hello = ???
+      |```
+      |
+      |```scala mdoc:reset-package
+      |@main def hello = ???
+      |```
+    """.stripMargin,
+    """|```scala
+       |implicit val x: Int = 42
+       |// x: Int = 42
+       |```
+       |
+       |```scala
+       |
+       |```
+       |
+       |```scala
+       |implicit val x: Int = 41
+       |// x: Int = 41
+       |println(x)
+       |// 41
+       |```
+    """.stripMargin
+  )
+
 }

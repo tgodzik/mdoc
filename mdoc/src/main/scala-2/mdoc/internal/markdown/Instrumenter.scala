@@ -149,6 +149,7 @@ object Instrumenter {
       else identifier
     val keyword =
       if (mod.isResetClass) "class"
+      else if (mod.isResetPackage) "package"
       else "object"
     s"$ctor\n}\n$keyword $identifier {\n"
   }

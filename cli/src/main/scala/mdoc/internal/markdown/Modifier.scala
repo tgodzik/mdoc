@@ -26,9 +26,10 @@ sealed abstract class Modifier(val mods: Set[Mod]) {
   def isSilent: Boolean = mods(Silent)
   def isInvisible: Boolean = mods(Invisible)
   def isCompileOnly: Boolean = mods(CompileOnly)
-  def isReset: Boolean = isResetClass || isResetObject
+  def isReset: Boolean = isResetClass || isResetObject || isResetPackage
   def isResetClass: Boolean = mods(ResetClass) || mods(Reset)
   def isResetObject: Boolean = mods(ResetObject)
+  def isResetPackage: Boolean = mods(ResetPackage)
   def isNest: Boolean = mods(Nest)
 
   def widthOverride: Option[Int] =
