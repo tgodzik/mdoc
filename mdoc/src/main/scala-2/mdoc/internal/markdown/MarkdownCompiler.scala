@@ -7,6 +7,7 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.Optional
 import mdoc.Reporter
 import mdoc.document.Document
 import mdoc.document._
@@ -29,11 +30,15 @@ import scala.tools.nsc.io.VirtualDirectory
 import scala.annotation.implicitNotFound
 import mdoc.internal.worksheets.Compat._
 
-class MarkdownCompiler(
+class MarkdownCompilerImpl private (
     classpath: String,
-    val scalacOptions: String,
-    target: AbstractFile = new VirtualDirectory("(memory)", None)
-) {
+    override val scalacOptions: String,
+    target: AbstractFile
+) extends mdoc.internal.markdown.MarkdownCompiler {
+
+  def this(classpath: String, scalacOptions: String) = {
+    this(classpath, scalacOptions, new VirtualDirectory("(memory)", None))
+  }
   private val settings = new Settings()
   settings.Yrangepos.value = true
   settings.deprecation.value = true // enable detailed deprecation warnings
@@ -47,7 +52,7 @@ class MarkdownCompiler(
   settings.Ydelambdafy.value = "inline"
   settings.processArgumentString(scalacOptions)
 
-  def classpathEntries: Seq[Path] = global.classPath.asURLs.map(url => Paths.get(url.toURI()))
+  def classpathEntriesSeq: Seq[Path] = global.classPath.asURLs.map(url => Paths.get(url.toURI()))
 
   private val sreporter = new FilterStoreReporter(settings)
   var global = new Global(settings, sreporter)
@@ -234,5 +239,60 @@ class MarkdownCompiler(
       .println(pos.lineContent)
       .println(pos.lineCaret)
       .toString
+
+  // Java interface implementation methods
+  override def compile(
+      input: Object,
+      reporter: Object,
+      edit: Object,
+      className: String,
+      fileImports: Object
+  ): Optional[Class[_]] = {
+    val result: Option[Class[_]] = compile(
+      input.asInstanceOf[Input],
+      reporter.asInstanceOf[Reporter],
+      edit.asInstanceOf[TokenEditDistance],
+      className,
+      fileImports.asInstanceOf[List[FileImport]]
+    )
+    result match {
+      case Some(cls) => Optional.of(cls.asInstanceOf[Class[_]])
+      case None => Optional.empty[Class[_]]()
+    }
+  }
+
+  override def compileSources(
+      input: Object,
+      reporter: Object,
+      edit: Object,
+      fileImports: Object
+  ): Unit = {
+    compileSources(
+      input.asInstanceOf[Input],
+      reporter.asInstanceOf[Reporter],
+      edit.asInstanceOf[TokenEditDistance],
+      fileImports.asInstanceOf[List[FileImport]]
+    )
+  }
+
+  override def fail(
+      edit: Object,
+      input: Object,
+      sectionPos: Object
+  ): String = {
+    fail(
+      edit.asInstanceOf[TokenEditDistance],
+      input.asInstanceOf[Input],
+      sectionPos.asInstanceOf[Position]
+    )
+  }
+
+  override def classpathEntries(): java.util.List[Path] = {
+    scala.jdk.CollectionConverters.SeqHasAsJava(classpathEntriesSeq.toList).asJava
+  }
+
+  override def newInstance(classpath: String, scalacOptions: String): MarkdownCompiler = {
+    new MarkdownCompilerImpl(classpath, scalacOptions)
+  }
 
 }

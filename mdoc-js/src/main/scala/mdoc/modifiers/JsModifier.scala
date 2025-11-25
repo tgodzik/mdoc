@@ -4,7 +4,7 @@ import mdoc.{OnLoadContext, PostProcessContext, PreModifierContext}
 import mdoc.internal.cli.InputFile
 import mdoc.internal.io.ConsoleReporter
 import mdoc.internal.livereload.Resources
-import mdoc.internal.markdown.{CodeBuilder, Gensym, MarkdownCompiler}
+import mdoc.internal.markdown.{CodeBuilder, Gensym, MarkdownCompiler, MarkdownCompilerImpl}
 import mdoc.internal.pos.PositionSyntax._
 import mdoc.internal.pos.TokenEditDistance
 
@@ -98,7 +98,7 @@ class JsModifier extends mdoc.PreModifier {
         // to speed up unit tests by nearly 2x.
         if (classpathHash != newClasspathHash) {
           classpathHash = newClasspathHash
-          maybeCompiler = Some(new MarkdownCompiler(classpath, scalacOptions, target))
+          maybeCompiler = Some(new MarkdownCompilerImpl(classpath, scalacOptions))
 
           val loader =
             ScalaJSClassloader.create(linkerClasspath.entries.map(_.toURI.toURL()).toArray)
@@ -151,7 +151,12 @@ class JsModifier extends mdoc.PreModifier {
     val edit = TokenEditDistance.fromInputs(inputs, input)
     val oldErrors = ctx.reporter.errorCount
 
-    compiler.compileSources(input, ctx.reporter, edit, fileImports = Nil)
+    compiler.compileSources(
+      input.asInstanceOf[Object],
+      ctx.reporter.asInstanceOf[Object],
+      edit.asInstanceOf[Object],
+      Nil.asInstanceOf[Object]
+    )
 
     val hasErrors = ctx.reporter.errorCount > oldErrors
 

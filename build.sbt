@@ -171,6 +171,28 @@ lazy val interfaces = project
     javacOptions ++= Seq("--release", "8")
   )
 
+lazy val compilerInterface = project
+  .in(file("mdoc-compiler-interface"))
+  .settings(
+    moduleName := "mdoc-compiler-interface",
+    autoScalaLibrary := false,
+    crossVersion := CrossVersion.disabled,
+    crossPaths := false,
+    javacOptions ++= Seq("--release", "8"),
+    Compile / doc / javacOptions ++= List(
+      "-tag",
+      "implNote:a:Implementation Note:"
+    ),
+    // @note needed to deal with issues with dottyDoc
+    Compile / doc / sources := {
+      if (isScala3.value) {
+        Seq.empty
+      } else {
+        (Compile / doc / sources).value
+      }
+    }
+  )
+
 lazy val runtime = project
   .settings(
     sharedSettings,
@@ -258,7 +280,7 @@ lazy val mdoc = project
       "com.lihaoyi" %% "pprint" % V.pprint
     )
   )
-  .dependsOn(parser.jvm, runtime, cli)
+  .dependsOn(parser.jvm, runtime, cli, compilerInterface)
   .enablePlugins(BuildInfoPlugin)
 
 lazy val testsInput = project

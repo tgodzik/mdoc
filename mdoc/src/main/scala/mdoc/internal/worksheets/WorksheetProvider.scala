@@ -51,7 +51,7 @@ class WorksheetProvider(settings: Settings) {
         .asJava,
       instrumented.fileImports.map(_.toInterface).asJava,
       instrumented.scalacOptionImports.map(_.value).asJava,
-      compiler.classpathEntries.asJava,
+      compiler.classpathEntries(),
       instrumented.dependencies.toSeq.asJava,
       instrumented.repositories.toSeq.asJava
     )

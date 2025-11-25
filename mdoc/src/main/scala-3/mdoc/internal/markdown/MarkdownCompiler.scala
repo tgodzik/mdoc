@@ -8,6 +8,7 @@ import java.net.URI
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.Optional
 import sun.misc.Unsafe
 
 import mdoc.Reporter
@@ -62,11 +63,15 @@ class MarkdownDriver(val settings: List[String]) extends Driver {
   }
 }
 
-class MarkdownCompiler(
+class MarkdownCompilerImpl private (
     classpath: String,
-    val scalacOptions: String,
-    target: AbstractFile = new VirtualDirectory("(memory)")
-) {
+    override val scalacOptions: String,
+    target: AbstractFile
+) extends mdoc.internal.markdown.MarkdownCompiler {
+
+  def this(classpath: String, scalacOptions: String) = {
+    this(classpath, scalacOptions, new VirtualDirectory("(memory)"))
+  }
 
   private val defaultFlags =
     List("-color:never", "-unchecked", "-deprecation", "-Ximport-suggestion-timeout", "0")
@@ -103,11 +108,11 @@ class MarkdownCompiler(
 
   def shutdown(): Unit = {}
 
-  def classpathEntries: Seq[Path] =
+  def classpathEntriesSeq: Seq[Path] =
     context.settings.classpath
       .value(using context)
       .split(File.pathSeparator)
-      .map(url => Paths.get(url))
+      .map(url => Paths.get(url)).toSeq
 
   private def reset(): Unit = {
     context = newContext
@@ -294,5 +299,60 @@ class MarkdownCompiler(
       .println(s"${pos.source().path()}:${pos.line + 1} (mdoc generated code) \n $message")
       .println(pos.lineContent)
       .toString
+
+  // Java interface implementation methods
+  override def compile(
+      input: Object,
+      reporter: Object,
+      edit: Object,
+      className: String,
+      fileImports: Object
+  ): Optional[Class[?]] = {
+    val result: Option[Class[?]] = compile(
+      input.asInstanceOf[Input],
+      reporter.asInstanceOf[Reporter],
+      edit.asInstanceOf[TokenEditDistance],
+      className,
+      fileImports.asInstanceOf[List[FileImport]]
+    )
+    result match {
+      case Some(cls) => Optional.of(cls.asInstanceOf[Class[?]])
+      case None => Optional.empty[Class[?]]()
+    }
+  }
+
+  override def compileSources(
+      input: Object,
+      reporter: Object,
+      edit: Object,
+      fileImports: Object
+  ): Unit = {
+    compileSources(
+      input.asInstanceOf[Input],
+      reporter.asInstanceOf[Reporter],
+      edit.asInstanceOf[TokenEditDistance],
+      fileImports.asInstanceOf[List[FileImport]]
+    )
+  }
+
+  override def fail(
+      edit: Object,
+      input: Object,
+      sectionPos: Object
+  ): String = {
+    fail(
+      edit.asInstanceOf[TokenEditDistance],
+      input.asInstanceOf[Input],
+      sectionPos.asInstanceOf[Position]
+    )
+  }
+
+  override def classpathEntries(): java.util.List[Path] = {
+    scala.jdk.CollectionConverters.SeqHasAsJava(classpathEntriesSeq.toList).asJava
+  }
+
+  override def newInstance(classpath: String, scalacOptions: String): MarkdownCompiler = {
+    new MarkdownCompilerImpl(classpath, scalacOptions)
+  }
 
 }

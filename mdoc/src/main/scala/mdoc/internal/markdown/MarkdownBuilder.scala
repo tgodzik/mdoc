@@ -17,6 +17,27 @@ import java.util.concurrent.atomic.AtomicReference
 
 object MarkdownBuilder {
 
+  private def loadCompilerImplementation(classpath: String, scalacOptions: String): MarkdownCompiler = {
+    import java.util.ServiceLoader
+    import scala.collection.JavaConverters._
+
+    val loader = ServiceLoader.load(
+      classOf[MarkdownCompiler],
+      classOf[MarkdownCompiler].getClassLoader
+    )
+
+    val iterator = loader.iterator()
+    if (iterator.hasNext) {
+      val compiler = iterator.next()
+      compiler.newInstance(classpath, scalacOptions)
+    } else {
+      throw new IllegalStateException(
+        "No MarkdownCompiler implementation found. " +
+        "Make sure mdoc-compiler is on the classpath for your Scala version."
+      )
+    }
+  }
+
   def default(): MarkdownCompiler = fromClasspath(classpath = "", scalacOptions = "")
 
   def buildDocument(
@@ -31,14 +52,14 @@ object MarkdownBuilder {
     val compileInput = Input.VirtualFile(filename, instrumented.source)
     val edit = SectionInput.tokenEdit(sectionInputs, compileInput)
     val compiled = compiler.compile(
-      compileInput,
-      reporter,
-      edit,
+      compileInput.asInstanceOf[Object],
+      reporter.asInstanceOf[Object],
+      edit.asInstanceOf[Object],
       "repl.MdocSession$",
-      instrumented.fileImports
+      instrumented.fileImports.asInstanceOf[Object]
     )
-    val doc = compiled match {
-      case Some(cls) =>
+    val doc = if (compiled.isPresent) {
+      val cls = compiled.get()
         val ctor = cls.getDeclaredConstructor()
         ctor.setAccessible(true)
         val doc = ctor.newInstance().asInstanceOf[DocumentBuilder].$doc
@@ -71,9 +92,9 @@ object MarkdownBuilder {
           }
         }
         evaluatedDoc
-      case None =>
-        // An empty document will render as the original markdown
-        Document.empty(instrumentedInput)
+    } else {
+      // An empty document will render as the original markdown
+      Document.empty(instrumentedInput)
     }
     EvaluatedDocument(doc, sectionInputs)
   }
@@ -91,13 +112,15 @@ object MarkdownBuilder {
           pathString.contains("fansi") ||
           pathString.contains("pprint") ||
           pathString.contains("mdoc-interfaces") ||
+          pathString.contains("mdoc-compiler-interface") ||
+          pathString.contains("mdoc-compiler") ||
           pathString.contains("using_directives") ||
           (pathString.contains("mdoc") && pathString.contains("runtime")) ||
           (pathString.contains("mdoc") && pathString.contains("printing"))
         })
         base ++ runtime
       }
-    new MarkdownCompiler(fullClasspath.syntax, scalacOptions)
+    loadCompilerImplementation(fullClasspath.syntax, scalacOptions)
   }
 
   private def runInClassLoader(classloader: ClassLoader)(f: () => Unit) = {
