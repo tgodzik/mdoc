@@ -1,48 +1,47 @@
 package mdoc.internal.markdown
 
+import dotty.tools.dotc.Compiler
+import dotty.tools.dotc.Driver
+import dotty.tools.dotc.ast.Trees.Tree
+import dotty.tools.dotc.ast.tpd
+import dotty.tools.dotc.config.Settings.Setting.*
+import dotty.tools.dotc.core.Contexts.Context
+import dotty.tools.dotc.core.Contexts.FreshContext
+import dotty.tools.dotc.interfaces.Diagnostic as IDiagnostic
+import dotty.tools.dotc.interfaces.SourceFile as ISourceFile
+import dotty.tools.dotc.interfaces.SourcePosition
+import dotty.tools.dotc.parsing.Parsers.Parser
+import dotty.tools.dotc.reporting.*
+import dotty.tools.dotc.util.SourceFile
+import dotty.tools.io.AbstractFile
+import dotty.tools.io.VirtualDirectory
+import dotty.tools.io.VirtualDirectoryCompat
+import mdoc.Reporter
+import mdoc.document.*
+import mdoc.document.Document
+import mdoc.internal.CompatClassloader
+import mdoc.internal.document.DocumentBuilder
+import mdoc.internal.document.MdocNonFatal
+import mdoc.internal.pos.PositionSyntax
+import mdoc.internal.pos.PositionSyntax.*
+import mdoc.internal.pos.TokenEditDistance
+import sun.misc.Unsafe
+
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
-import java.net.URL
 import java.net.URI
+import java.net.URL
 import java.net.URLClassLoader
 import java.nio.file.Path
 import java.nio.file.Paths
-import sun.misc.Unsafe
-
-import mdoc.Reporter
-import mdoc.document.Document
-import mdoc.document._
-import mdoc.internal.document.DocumentBuilder
-import mdoc.internal.document.MdocNonFatal
-import mdoc.internal.pos.TokenEditDistance
-import mdoc.internal.CompatClassloader
-import mdoc.internal.pos.PositionSyntax._
-import mdoc.internal.pos.PositionSyntax
-import mdoc.internal.pos.PositionSyntax._
-
-import scala.collection.JavaConverters._
+import scala.annotation.implicitNotFound
+import scala.collection.JavaConverters.*
 import scala.collection.Seq
-import scala.meta.Classpath
 import scala.meta.AbsolutePath
+import scala.meta.Classpath
 import scala.meta.inputs.Input
 import scala.meta.inputs.Position
-
-import dotty.tools.dotc.Driver
-import dotty.tools.dotc.core.Contexts.{Context, FreshContext}
-import dotty.tools.dotc.config.Settings.Setting._
-import dotty.tools.dotc.interfaces.SourcePosition
-import dotty.tools.dotc.ast.Trees.Tree
-import dotty.tools.dotc.ast.tpd
-import dotty.tools.dotc.interfaces.{SourceFile => ISourceFile}
-import dotty.tools.dotc.interfaces.{Diagnostic => IDiagnostic}
-import dotty.tools.dotc.reporting._
-import dotty.tools.dotc.parsing.Parsers.Parser
-import dotty.tools.dotc.Compiler
-import dotty.tools.io.{AbstractFile, VirtualDirectory, VirtualDirectoryCompat}
-import dotty.tools.dotc.util.SourceFile
-
-import scala.annotation.implicitNotFound
 import scala.util.control.NonFatal
 
 class MarkdownDriver(val settings: List[String]) extends Driver {
@@ -161,7 +160,7 @@ class MarkdownCompiler(
       className: String,
       fileImports: List[FileImport],
       retry: Int = 0
-  ): Option[Class[_]] = {
+  ): Option[Class[?]] = {
     compileSources(input, vreporter, edit, fileImports)
     if (!context.reporter.hasErrors) {
       val loader = new AbstractFileClassLoader(target, appClassLoader)
