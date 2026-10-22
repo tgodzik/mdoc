@@ -70,13 +70,15 @@ trait CliEnrichments {
   }
 
   implicit class XtensionPositionMdoc(pos: Position) extends InternalInput(pos.input) {
-    def lineContent: String = {
-      val input = pos.input
-      val start = lineToOffset(pos.startLine)
-      val notEof = start < input.chars.length
-      val end = if (notEof) lineToOffset(pos.startLine + 1) else start
-      new String(input.chars, start, end - start).stripLineEnd
-    }
+    def lineContent: String =
+      if (pos.startLine < 0) ""
+      else {
+        val input = pos.input
+        val start = lineToOffset(pos.startLine)
+        val notEof = start < input.chars.length
+        val end = if (notEof) lineToOffset(pos.startLine + 1) else start
+        new String(input.chars, start, end - start).stripLineEnd
+      }
     def lineCaret: String = {
       " " * pos.startColumn + "^"
     }

@@ -249,24 +249,24 @@ class MarkdownCompiler(
       val msg = nullableMessage(diagnostic.message)
 
       if (diagnostic.position.isPresent) {
-        try {
-          val pos = diagnostic.position.get
-          val mpos = toMetaPosition(edit, pos)
-          val actualMessage =
-            if (mpos == Position.None) {
-              val line = pos.lineContent
+        val (mpos, actualMessage) = diagnostic.position.get match
+          case sourcePosition: dotty.tools.dotc.util.SourcePosition
+              if sourcePosition.source.content().nonEmpty =>
+            val mpos = toMetaPosition(edit, sourcePosition)
+            val actualMessage = if (mpos == Position.None) {
+              val line = mpos.lineContent
               if (line.nonEmpty) {
-                formatMessage(pos, msg)
+                formatMessage(mpos, msg, line)
               } else {
                 msg
               }
             } else {
               msg
             }
-          reportMessage(vreporter, diagnostic, mpos, "\n" + actualMessage)
-        } catch {
-          case NonFatal(e) =>
-        }
+            (mpos, actualMessage)
+          case other => (Position.None, msg)
+
+        reportMessage(vreporter, diagnostic, mpos, "\n" + actualMessage)
       } else
         reportMessage(vreporter, diagnostic, Position.None, "\n" + msg)
     }
@@ -285,9 +285,9 @@ class MarkdownCompiler(
       case _ =>
     }
   }
-  private def formatMessage(pos: SourcePosition, message: String): String =
+  private def formatMessage(pos: Position, message: String, lineContent: String): String =
     new CodeBuilder()
-      .println(s"${pos.source().path()}:${pos.line + 1} (mdoc generated code) \n $message")
+      .println(s"${pos.input.syntax}:${pos.startLine + 1} (mdoc generated code) \n $message")
       .println(pos.lineContent)
       .toString
 
